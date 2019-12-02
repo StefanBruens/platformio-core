@@ -15,26 +15,30 @@
 import requests
 import semantic_version
 from marshmallow import Schema, ValidationError, fields, validate, validates
+from marshmallow import __version_info__ as marshmallow_version
+from marshmallow import EXCLUDE as marshmallow_EXCLUDE
 
 from platformio.package.exception import ManifestValidationError
 from platformio.util import memoized
 
 
 class StrictSchema(Schema):
-    def handle_error(self, error, data):
+    def handle_error(self, error, data, *, many, **_kwargs):
         # skip broken records
         if self.many:
-            error.data = [
+            data = [
                 item for idx, item in enumerate(data) if idx not in error.messages
             ]
-        else:
-            error.data = None
-        raise error
+            raise ValidationError(message=error.messages,
+                                  data=error.data, valid_data=data)
+        raise ValidationError(message=error.messages, data=error.data, valid_data=None)
 
 
 class StrictListField(fields.List):
-    def _deserialize(self, value, attr, data):
+    def _deserialize(self, value, attr, data, **kwargs):
         try:
+            if marshmallow_version >= (3, ):
+                return super(StrictListField, self)._deserialize(value, attr, data, **kwargs)
             return super(StrictListField, self)._deserialize(value, attr, data)
         except ValidationError as exc:
             if exc.data:
@@ -81,6 +85,16 @@ class ExampleSchema(StrictSchema):
 
 
 class ManifestSchema(Schema):
+    def __init__(self, **kwargs):
+        if marshmallow_version >= (3, ):
+            self.strict = kwargs.pop('strict', False)
+        Schema.__init__(self, **kwargs)
+
+    class Meta:
+        # EXCLUDE unknown keys, keep marshmallow 2 behavior
+        if marshmallow_version >= (3, ):
+            unknown = marshmallow_EXCLUDE
+
     # Required fields
     name = fields.Str(required=True, validate=validate.Length(min=1, max=100))
     version = fields.Str(required=True, validate=validate.Length(min=1, max=50))
@@ -142,7 +156,20 @@ class ManifestSchema(Schema):
         )
     )
 
-    def handle_error(self, error, data):
+    # Wrapper to encapsulate differences between marshmallow 2 and 3
+    # load() method
+    def load_manifest(self, manifest):
+        if marshmallow_version >= (3, ):
+            try:
+                data = self.load(manifest)
+            except ValidationError as exc:
+                return (exc.valid_data, exc.messages)
+            else:
+                return (data, None)
+        else:
+            return self.load(manifest)
+
+    def handle_error(self, error, data, *, many, **_kwargs):
         if self.strict:
             raise ManifestValidationError(error, data)
 

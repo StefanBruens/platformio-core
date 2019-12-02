@@ -229,7 +229,7 @@ def test_library_json_schema():
         contents, parser.ManifestFileType.LIBRARY_JSON
     ).as_dict()
 
-    data, errors = ManifestSchema(strict=True).load(raw_data)
+    data, errors = ManifestSchema(strict=True).load_manifest(raw_data)
     assert not errors
 
     assert data["repository"]["url"] == "https://github.com/bblanchon/ArduinoJson.git"
@@ -287,7 +287,7 @@ architectures=avr,sam
         contents, parser.ManifestFileType.LIBRARY_PROPERTIES
     ).as_dict()
 
-    data, errors = ManifestSchema(strict=True).load(raw_data)
+    data, errors = ManifestSchema(strict=True).load_manifest(raw_data)
     assert not errors
 
     assert not jsondiff.diff(
@@ -335,7 +335,7 @@ includes=MozziGuts.h
         ),
     ).as_dict()
 
-    data, errors = ManifestSchema(strict=False).load(raw_data)
+    data, errors = ManifestSchema(strict=False).load_manifest(raw_data)
     assert errors["authors"]
 
     assert not jsondiff.diff(
@@ -421,7 +421,7 @@ def test_platform_json_schema():
         contents, parser.ManifestFileType.PLATFORM_JSON
     ).as_dict()
     raw_data["frameworks"] = sorted(raw_data["frameworks"])
-    data, errors = ManifestSchema(strict=False).load(raw_data)
+    data, errors = ManifestSchema(strict=False).load_manifest(raw_data)
     assert not errors
 
     assert not jsondiff.diff(
@@ -461,7 +461,7 @@ def test_package_json_schema():
         contents, parser.ManifestFileType.PACKAGE_JSON
     ).as_dict()
 
-    data, errors = ManifestSchema(strict=False).load(raw_data)
+    data, errors = ManifestSchema(strict=False).load_manifest(raw_data)
     assert not errors
 
     assert not jsondiff.diff(
@@ -564,7 +564,7 @@ def test_examples_from_dir(tmpdir_factory):
 
     raw_data["examples"] = _sort_examples(raw_data["examples"])
 
-    data, errors = ManifestSchema(strict=True).load(raw_data)
+    data, errors = ManifestSchema(strict=True).load_manifest(raw_data)
     assert not errors
 
     assert not jsondiff.diff(
@@ -622,12 +622,12 @@ def test_examples_from_dir(tmpdir_factory):
 
 def test_broken_schemas():
     # non-strict mode
-    data, errors = ManifestSchema(strict=False).load(dict(name="MyPackage"))
+    data, errors = ManifestSchema(strict=False).load_manifest(dict(name="MyPackage"))
     assert set(errors.keys()) == set(["version"])
     assert data.get("version") is None
 
     # invalid keywords
-    data, errors = ManifestSchema(strict=False).load(dict(keywords=["kw1", "*^[]"]))
+    data, errors = ManifestSchema(strict=False).load_manifest(dict(keywords=["kw1", "*^[]"]))
     assert errors
     assert data["keywords"] == ["kw1"]
 
@@ -636,19 +636,19 @@ def test_broken_schemas():
     with pytest.raises(
         ManifestValidationError, match="Missing data for required field"
     ):
-        ManifestSchema(strict=True).load(dict(name="MyPackage"))
+        ManifestSchema(strict=True).load_manifest(dict(name="MyPackage"))
 
     # broken SemVer
     with pytest.raises(
         ManifestValidationError, match=("Invalid semantic versioning format")
     ):
-        ManifestSchema(strict=True).load(
+        ManifestSchema(strict=True).load_manifest(
             dict(name="MyPackage", version="broken_version")
         )
 
     # broken value for Nested
     with pytest.raises(ManifestValidationError, match=r"authors.*Invalid input type"):
-        ManifestSchema(strict=True).load(
+        ManifestSchema(strict=True).load_manifest(
             dict(
                 name="MyPackage",
                 description="MyDescription",
